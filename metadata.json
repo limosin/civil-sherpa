@@ -1,0 +1,8 @@
+{
+  "name": "Civic Lens",
+  "description": "A bureaucratic sherpa for low-literacy populations. Translates complex government documents into spoken, actionable advice in native dialects.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
