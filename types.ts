@@ -18,7 +18,10 @@ export interface AnalysisResult {
   summary: string;
   urgency: 'Low' | 'Medium' | 'High' | 'Critical';
   actionItems: ActionItem[];
-  translatedSpeechText: string; // The colloquial script for TTS
+  translatedSpeechText: string;
+  // New fields for the "Shield" persona
+  risks: string[]; // Predatory terms, traps, or severe consequences
+  rights: string[]; // What the user is entitled to (appeals, extensions, etc)
 }
 
 export interface VoiceConfig {
@@ -32,5 +35,5 @@ export const LANGUAGE_CONFIGS: Record<Language, { label: string; flag: string; v
   [Language.FRENCH]: { label: 'Français', flag: '🇫🇷', voiceName: 'Charon' },
   [Language.HINDI]: { label: 'हिंदी', flag: '🇮🇳', voiceName: 'Fenrir' },
   [Language.ARABIC]: { label: 'العربية', flag: '🇸🇦', voiceName: 'Zephyr' },
-  [Language.MANDARIN]: { label: '普通话', flag: '🇨🇳', voiceName: 'Puck' }, // Fallback voice, text handles language
+  [Language.MANDARIN]: { label: '普通话', flag: '🇨🇳', voiceName: 'Puck' },
 };

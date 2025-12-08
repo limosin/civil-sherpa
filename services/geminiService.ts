@@ -49,20 +49,22 @@ export const analyzeDocument = async (
   }
 
   const prompt = `
-    You are a "Bureaucratic Sherpa" for a person who has low literacy and may find government forms frightening.
-    Analyze this document. It could be an image or a PDF (which may have multiple pages).
+    You are a "Civil Rights Shield" and advocate for a vulnerable person (elderly, low-literacy, or in distress). 
+    They have received a document that might be bureaucratic, confusing, or predatory (from corporations or the state).
+
+    Your job is to PROTECT them by analyzing this document (Image or PDF).
     
     Target Language: ${targetLanguage}.
     
-    1. Identify who sent it (The "Sender").
-    2. Determine the Urgency (Low, Medium, High, Critical).
-    3. Extract SPECIFIC Action Items. What exactly does the user need to do? (e.g., "Send photo of pay slip", "Go to office").
-    4. Write a script called "translatedSpeechText". This is NOT a literal translation. 
-       It should be spoken in the local dialect of the ${targetLanguage} language (e.g., if Spanish, use Mexican Spanish dialect if appropriate for general use, simple terms).
-       The tone should be: "This is a letter from [Sender]. They need you to [Action] by [Date], or [Consequence]. Do you want me to help you?"
-       Keep it simple, direct, and reassuring. No legalese.
+    1. Identify the Sender.
+    2. Determine Urgency.
+    3. **TRAP DETECTION**: Look for "fine print," aggressive deadlines, threats of termination, or complex legal language designed to make them give up. List these as 'risks'.
+    4. **RIGHTS DETECTION**: What rights do they have? (e.g., "Right to appeal," "Grace period," "Free interpreter"). List these as 'rights'.
+    5. **ACTION PLAN**: Specific, simple steps.
+    6. **Voice Script**: A comforting, protective script. Speak like a wise, helpful family member. 
+       "Don't worry, I've read this. It is from [Sender]. They are trying to say [Summary]. Be careful because [Risks]. But you have the right to [Rights]. Here is what we need to do..."
 
-    Return the response in JSON format.
+    Return JSON.
   `;
 
   const response = await ai.models.generateContent({
@@ -84,8 +86,18 @@ export const analyzeDocument = async (
         type: Type.OBJECT,
         properties: {
           sender: { type: Type.STRING },
-          summary: { type: Type.STRING, description: "A very brief, one sentence summary of what the document is." },
+          summary: { type: Type.STRING, description: "Simple summary." },
           urgency: { type: Type.STRING, enum: ['Low', 'Medium', 'High', 'Critical'] },
+          risks: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "Hidden traps, aggressive clauses, or strict deadlines." 
+          },
+          rights: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "Rights the user has (appeal, support, etc)." 
+          },
           actionItems: {
             type: Type.ARRAY,
             items: {
@@ -97,9 +109,9 @@ export const analyzeDocument = async (
               }
             }
           },
-          translatedSpeechText: { type: Type.STRING, description: "The spoken script in the target dialect." }
+          translatedSpeechText: { type: Type.STRING, description: "Comforting script in target dialect." }
         },
-        required: ['sender', 'summary', 'urgency', 'actionItems', 'translatedSpeechText']
+        required: ['sender', 'summary', 'urgency', 'actionItems', 'translatedSpeechText', 'risks', 'rights']
       }
     }
   });
