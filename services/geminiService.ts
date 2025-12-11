@@ -58,10 +58,18 @@ export const analyzeDocument = async (
     
     1. Identify the Sender.
     2. Determine Urgency.
-    3. **TRAP DETECTION**: Look for "fine print," aggressive deadlines, threats of termination, or complex legal language designed to make them give up. List these as 'risks'.
-    4. **RIGHTS DETECTION**: What rights do they have? (e.g., "Right to appeal," "Grace period," "Free interpreter"). List these as 'rights'.
+    3. **TRAP DETECTION (Risks)**: Look for "fine print," aggressive deadlines, threats of termination, or complex legal language. 
+       - PROVIDE COORDINATES (box_2d) for where this text appears on the page so we can highlight it.
+    4. **RIGHTS DETECTION**: What rights do they have? (e.g., "Right to appeal," "Grace period").
+       - PROVIDE COORDINATES (box_2d) for where this is mentioned.
     5. **ACTION PLAN**: Specific, simple steps.
-    6. **Voice Script**: A comforting, protective script. Speak like a wise, helpful family member. 
+       - If an action corresponds to a specific part of the form (e.g., "Check this box"), provide coordinates.
+    6. **VISUAL GUIDANCE (Annotations)**: Identify specific locations on the page where the user must take action. Return bounding boxes [ymin, xmin, ymax, xmax] in 0-1000 scale.
+       - Look for Signature lines (label: "Sign Here")
+       - Look for Date fields (label: "Date Here")
+       - Look for Input boxes that must be filled (label: "Fill This")
+       - Look for Dangerous clauses (label: "Read Carefully")
+    7. **Voice Script**: A comforting, protective script. Speak like a wise, helpful family member. 
        "Don't worry, I've read this. It is from [Sender]. They are trying to say [Summary]. Be careful because [Risks]. But you have the right to [Rights]. Here is what we need to do..."
 
     Return JSON.
@@ -90,12 +98,24 @@ export const analyzeDocument = async (
           urgency: { type: Type.STRING, enum: ['Low', 'Medium', 'High', 'Critical'] },
           risks: { 
             type: Type.ARRAY, 
-            items: { type: Type.STRING },
+            items: { 
+              type: Type.OBJECT,
+              properties: {
+                description: { type: Type.STRING },
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+              }
+            },
             description: "Hidden traps, aggressive clauses, or strict deadlines." 
           },
           rights: { 
             type: Type.ARRAY, 
-            items: { type: Type.STRING },
+            items: { 
+              type: Type.OBJECT,
+              properties: {
+                description: { type: Type.STRING },
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+              }
+            },
             description: "Rights the user has (appeal, support, etc)." 
           },
           actionItems: {
@@ -105,13 +125,30 @@ export const analyzeDocument = async (
               properties: {
                 what: { type: Type.STRING },
                 when: { type: Type.STRING, nullable: true },
-                how: { type: Type.STRING }
+                how: { type: Type.STRING },
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+              }
+            }
+          },
+          annotations: {
+            type: Type.ARRAY,
+            description: "Visual coordinates for AR overlay",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                type: { type: Type.STRING, enum: ['signature', 'date', 'input', 'warning'] },
+                box_2d: { 
+                  type: Type.ARRAY,
+                  items: { type: Type.NUMBER },
+                  description: "[ymin, xmin, ymax, xmax] in 0-1000 scale"
+                }
               }
             }
           },
           translatedSpeechText: { type: Type.STRING, description: "Comforting script in target dialect." }
         },
-        required: ['sender', 'summary', 'urgency', 'actionItems', 'translatedSpeechText', 'risks', 'rights']
+        required: ['sender', 'summary', 'urgency', 'actionItems', 'translatedSpeechText', 'risks', 'rights', 'annotations']
       }
     }
   });

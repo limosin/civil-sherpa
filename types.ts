@@ -11,6 +11,23 @@ export interface ActionItem {
   what: string;
   when: string | null;
   how: string;
+  box_2d?: [number, number, number, number]; // Visual reference
+}
+
+export interface Risk {
+  description: string;
+  box_2d?: [number, number, number, number]; // Visual reference
+}
+
+export interface Right {
+  description: string;
+  box_2d?: [number, number, number, number]; // Visual reference
+}
+
+export interface Annotation {
+  label: string; // "Sign Here", "Date Here", "Fill Amount"
+  type: 'signature' | 'date' | 'input' | 'warning';
+  box_2d: [number, number, number, number]; // [ymin, xmin, ymax, xmax] - normalized 0-1000
 }
 
 export interface AnalysisResult {
@@ -20,8 +37,9 @@ export interface AnalysisResult {
   actionItems: ActionItem[];
   translatedSpeechText: string;
   // New fields for the "Shield" persona
-  risks: string[]; // Predatory terms, traps, or severe consequences
-  rights: string[]; // What the user is entitled to (appeals, extensions, etc)
+  risks: Risk[]; 
+  rights: Right[];
+  annotations: Annotation[]; // AR-style coordinates for visual guidance
 }
 
 export interface VoiceConfig {
