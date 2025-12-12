@@ -59,17 +59,19 @@ export const analyzeDocument = async (
     1. Identify the Sender.
     2. Determine Urgency.
     3. **TRAP DETECTION (Risks)**: Look for "fine print," aggressive deadlines, threats of termination, or complex legal language. 
-       - CRITICAL: If this risk comes from specific text visible on the page, YOU MUST PROVIDE COORDINATES (box_2d).
+       - CRITICAL: If this risk comes from specific text visible on the page, YOU MUST PROVIDE COORDINATES (box_2d) and PAGE NUMBER.
        - If it is general advice, omit coordinates.
     4. **RIGHTS DETECTION**: What rights do they have? (e.g., "Right to appeal," "Grace period").
-       - CRITICAL: If the right is stated in the text, YOU MUST PROVIDE COORDINATES (box_2d).
+       - CRITICAL: If the right is stated in the text, YOU MUST PROVIDE COORDINATES (box_2d) and PAGE NUMBER.
     5. **ACTION PLAN**: Specific, simple steps.
-       - CRITICAL: If an action corresponds to a specific part of the form (e.g., "Check this box", "Sign here", "Mail to this address"), YOU MUST PROVIDE COORDINATES (box_2d).
+       - CRITICAL: If an action corresponds to a specific part of the form (e.g., "Check this box", "Sign here", "Mail to this address"), YOU MUST PROVIDE COORDINATES (box_2d) and PAGE NUMBER.
     6. **VISUAL GUIDANCE (Annotations)**: Identify specific locations on the page where the user must take action. Return bounding boxes [ymin, xmin, ymax, xmax] in 0-1000 scale.
        - Look for Signature lines (label: "Sign Here")
        - Look for Date fields (label: "Date Here")
        - Look for Input boxes that must be filled (label: "Fill This")
        - Look for Dangerous clauses (label: "Read Carefully")
+       - **PAGE NUMBERS**: For multi-page documents, specify the page number (1-based) for each annotation.
+
     7. **Voice Script**: A comforting, protective script. Speak like a wise, helpful family member. 
        "Don't worry, I've read this. It is from [Sender]. They are trying to say [Summary]. Be careful because [Risks]. But you have the right to [Rights]. Here is what we need to do..."
 
@@ -103,7 +105,8 @@ export const analyzeDocument = async (
               type: Type.OBJECT,
               properties: {
                 description: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true },
+                page: { type: Type.INTEGER, description: "Page number (1-based)", nullable: true }
               }
             },
             description: "Hidden traps, aggressive clauses, or strict deadlines." 
@@ -114,7 +117,8 @@ export const analyzeDocument = async (
               type: Type.OBJECT,
               properties: {
                 description: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true },
+                page: { type: Type.INTEGER, description: "Page number (1-based)", nullable: true }
               }
             },
             description: "Rights the user has (appeal, support, etc)." 
@@ -127,7 +131,8 @@ export const analyzeDocument = async (
                 what: { type: Type.STRING },
                 when: { type: Type.STRING, nullable: true },
                 how: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true },
+                page: { type: Type.INTEGER, description: "Page number (1-based)", nullable: true }
               }
             }
           },
@@ -143,7 +148,8 @@ export const analyzeDocument = async (
                   type: Type.ARRAY,
                   items: { type: Type.NUMBER },
                   description: "[ymin, xmin, ymax, xmax] in 0-1000 scale"
-                }
+                },
+                page: { type: Type.INTEGER, description: "Page number (1-based)", nullable: true }
               }
             }
           },

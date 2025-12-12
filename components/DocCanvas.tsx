@@ -15,11 +15,12 @@ interface DocCanvasProps {
   imageSrc: string;
   annotations: Annotation[];
   focusedBox?: number[] | null; // Optional: [ymin, xmin, ymax, xmax]
+  focusedPage?: number; 
   zoom?: number;
 }
 
-export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, focusedBox, zoom = 1 }) => {
-  const [renderedImage, setRenderedImage] = useState<string | null>(null);
+export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, focusedBox, focusedPage, zoom = 1 }) => {
+  const [renderedPages, setRenderedPages] = useState<string[]>([]);
   const [isRendering, setIsRendering] = useState(false);
   const [pageCount, setPageCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -30,13 +31,16 @@ export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, foc
     let active = true;
 
     if (!isPdf) {
-      setRenderedImage(imageSrc);
+      setRenderedPages([imageSrc]);
+      setPageCount(1);
       return;
     }
 
     const renderPdf = async () => {
       setIsRendering(true);
       setError(null);
+      setRenderedPages([]);
+      
       try {
         // Use the resolved pdfjs object
         const loadingTask = pdfjs.getDocument(imageSrc);
@@ -45,25 +49,33 @@ export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, foc
         if (!active) return;
         setPageCount(pdf.numPages);
 
-        // Render first page
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 2.0 }); // Render at high quality
-        
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        const pagesData: string[] = [];
 
-        if (context) {
-          await page.render({
-            canvasContext: context,
-            viewport: viewport
-          }).promise;
+        // Loop through all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+          if (!active) break;
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2.0 }); // Render at high quality
+          
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
 
-          if (active) {
-            setRenderedImage(canvas.toDataURL('image/jpeg'));
+          if (context) {
+            await page.render({
+              canvasContext: context,
+              viewport: viewport
+            }).promise;
+
+            pagesData.push(canvas.toDataURL('image/jpeg'));
           }
         }
+
+        if (active) {
+          setRenderedPages(pagesData);
+        }
+
       } catch (err: any) {
         console.error("Error rendering PDF:", err);
         if (active) {
@@ -110,7 +122,7 @@ export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, foc
         >
            <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-              <p className="text-slate-400 font-medium text-sm">Converting Document...</p>
+              <p className="text-slate-400 font-medium text-sm">Processing {pageCount > 0 ? `${pageCount} pages...` : 'Document...'}</p>
            </div>
         </div>
      );
@@ -133,52 +145,72 @@ export const DocCanvas: React.FC<DocCanvasProps> = ({ imageSrc, annotations, foc
      );
   }
 
-  if (!renderedImage) return null;
+  if (renderedPages.length === 0) return null;
 
   return (
     <div 
-      className="relative transition-transform duration-200 ease-out origin-top-left"
+      className="flex flex-col gap-8 transition-transform duration-200 ease-out origin-top-left"
       style={{ 
         width: `${zoom * 100}%`,
         minWidth: '100%'
       }}
     >
-      <img 
-        src={renderedImage} 
-        alt="Document Analysis" 
-        className="w-full h-auto object-contain rounded-lg shadow-sm" 
-      />
-      
-      {/* PDF Page Indicator */}
-      {isPdf && pageCount > 1 && (
-         <div className="absolute top-4 right-4 bg-slate-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm z-30 pointer-events-none border border-white/10">
-            Page 1 of {pageCount}
-         </div>
-      )}
+      {renderedPages.map((pageSrc, index) => {
+        const pageNum = index + 1;
+        // Filter annotations for this page. 
+        // If page is undefined, assume it belongs to page 1 for backwards compatibility or single images.
+        const pageAnnotations = annotations.filter(ann => (ann.page || 1) === pageNum);
+        
+        // Check if focused box belongs to this page
+        // We need the parent component to pass the page number of the focused item
+        const isFocusedPage = focusedBox && (focusedPage === pageNum || (!focusedPage && pageNum === 1));
 
-      {/* Standard Annotations (Signature, etc.) */}
-      {annotations.map((ann, idx) => (
-        <div 
-          key={idx}
-          className={`absolute border-2 rounded group cursor-help transition-all duration-300 ${getStyleForType(ann.type)}`}
-          style={toStyle(ann.box_2d)}
-        >
-          {/* Tooltip Label */}
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-bold py-1.5 px-3 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none shadow-xl border border-white/20">
-            {ann.label}
-            <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-slate-900 rotate-45 border-r border-b border-white/20"></div>
+        return (
+          <div key={index} className="relative w-full shadow-md rounded-lg bg-white">
+            <img 
+              src={pageSrc} 
+              alt={`Page ${pageNum}`} 
+              className="w-full h-auto object-contain rounded-lg" 
+            />
+            
+            {/* Page Number Indicator */}
+            {isPdf && (
+              <div className="absolute top-4 right-4 bg-slate-900/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm z-30 pointer-events-none border border-white/10">
+                  Page {pageNum} of {pageCount}
+              </div>
+            )}
+
+            {/* Annotations */}
+            {pageAnnotations.map((ann, idx) => (
+              <div 
+                key={idx}
+                className={`absolute border-2 rounded group cursor-help transition-all duration-300 ${getStyleForType(ann.type)}`}
+                style={toStyle(ann.box_2d)}
+              >
+                {/* Tooltip Label */}
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-bold py-1.5 px-3 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none shadow-xl border border-white/20">
+                  {ann.label}
+                  <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-slate-900 rotate-45 border-r border-b border-white/20"></div>
+                </div>
+              </div>
+            ))}
+
+            {/* Focused Box Overlay */}
+            {isFocusedPage && focusedBox && (
+              <div 
+                className="absolute border-[3px] border-fuchsia-500 bg-fuchsia-500/20 rounded z-20 animate-[pulse_1.5s_ease-in-out_infinite] shadow-[0_0_20px_rgba(217,70,239,0.6)] transition-all duration-300 backdrop-blur-[1px]"
+                style={toStyle(focusedBox)}
+                ref={(el) => {
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+              >
+              </div>
+            )}
           </div>
-        </div>
-      ))}
-
-      {/* Focused Box Overlay (High Priority) */}
-      {focusedBox && (
-        <div 
-          className="absolute border-[3px] border-fuchsia-500 bg-fuchsia-500/20 rounded z-20 animate-[pulse_1.5s_ease-in-out_infinite] shadow-[0_0_20px_rgba(217,70,239,0.6)] transition-all duration-300 backdrop-blur-[1px]"
-          style={toStyle(focusedBox)}
-        >
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 };

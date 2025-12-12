@@ -21,7 +21,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "" }) => {
       
       {/* Text Container */}
       <div className="flex flex-col justify-center">
-        <span className="font-extrabold text-lg text-slate-800 leading-none tracking-tight whitespace-nowrap">Civic Lens</span>
+        <span className="font-extrabold text-lg text-slate-800 leading-none tracking-tight whitespace-nowrap">Civic Sherpa</span>
         <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mt-0.5 whitespace-nowrap">Civil Rights Shield</span>
       </div>
     </div>

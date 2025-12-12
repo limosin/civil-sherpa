@@ -12,22 +12,26 @@ export interface ActionItem {
   when: string | null;
   how: string;
   box_2d?: [number, number, number, number]; // Visual reference
+  page?: number;
 }
 
 export interface Risk {
   description: string;
   box_2d?: [number, number, number, number]; // Visual reference
+  page?: number;
 }
 
 export interface Right {
   description: string;
   box_2d?: [number, number, number, number]; // Visual reference
+  page?: number;
 }
 
 export interface Annotation {
   label: string; // "Sign Here", "Date Here", "Fill Amount"
   type: 'signature' | 'date' | 'input' | 'warning';
   box_2d: [number, number, number, number]; // [ymin, xmin, ymax, xmax] - normalized 0-1000
+  page?: number;
 }
 
 export interface AnalysisResult {

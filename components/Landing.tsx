@@ -24,7 +24,7 @@ export const Landing: React.FC<LandingProps> = ({ onStart }) => {
           </h1>
           
           <p className="text-xl text-slate-500 mb-10 max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-100">
-            Civic Lens acts as your personal bureaucratic sherpa. Upload any confusing letter, and we'll translate it, find the traps, and tell you exactly what to do.
+            Civic Sherpa acts as your personal bureaucratic sherpa. Upload any confusing letter, and we'll translate it, find the traps, and tell you exactly what to do.
           </p>
 
           <button 

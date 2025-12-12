@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { AnalysisResult, Language } from '../types';
-import { generateSpeech, playAudioBuffer } from '../services/geminiService';
+import { generateSpeech } from '../services/geminiService';
 import { DocCanvas } from './DocCanvas';
 
 interface AnalysisResultViewProps {
@@ -11,44 +11,90 @@ interface AnalysisResultViewProps {
 }
 
 export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, language, imageSrc, onReset }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing' | 'paused'>('loading');
   const [zoom, setZoom] = useState(1);
   const [mobileTab, setMobileTab] = useState<'plan' | 'doc'>('plan');
   
+  // Audio Refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pauseTimeRef = useRef<number>(0);
+  
   // Interactive State
   const [highlightedBox, setHighlightedBox] = useState<number[] | null>(null);
+  const [highlightedPage, setHighlightedPage] = useState<number | undefined>(undefined);
 
   // Load audio automatically on mount
   useEffect(() => {
     let active = true;
     const fetchAudio = async () => {
-      setIsLoadingAudio(true);
       try {
         const buffer = await generateSpeech(result.translatedSpeechText, language);
         if (active) {
-          setAudioBuffer(buffer);
-          setIsLoadingAudio(false);
+          audioBufferRef.current = buffer;
+          setAudioState('idle'); // Ready to play
         }
       } catch (error) {
         console.error("Failed to generate speech", error);
-        if (active) setIsLoadingAudio(false);
+        if (active) setAudioState('idle'); // Just falback to idle even if failed
       }
     };
     fetchAudio();
-    return () => { active = false; };
+    
+    return () => { 
+      active = false;
+      if (sourceRef.current) sourceRef.current.stop();
+      if (audioContextRef.current) audioContextRef.current.close();
+    };
   }, [result.translatedSpeechText, language]);
 
-  const handlePlay = useCallback(() => {
-    if (audioBuffer) {
-      setIsPlaying(true);
-      playAudioBuffer(audioBuffer);
-      setTimeout(() => {
-        setIsPlaying(false);
-      }, audioBuffer.duration * 1000);
+  const handleTogglePlay = async () => {
+    if (!audioBufferRef.current) return;
+
+    // Initialize Context if needed
+    if (!audioContextRef.current) {
+       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
-  }, [audioBuffer]);
+
+    if (audioState === 'playing') {
+       // Pause
+       if (audioContextRef.current.state === 'running') {
+         await audioContextRef.current.suspend();
+         setAudioState('paused');
+       }
+    } else if (audioState === 'paused') {
+       // Resume
+       if (audioContextRef.current.state === 'suspended') {
+         await audioContextRef.current.resume();
+         setAudioState('playing');
+       }
+    } else {
+       // Start from beginning
+       if (sourceRef.current) {
+          sourceRef.current.disconnect();
+       }
+       
+       const source = audioContextRef.current.createBufferSource();
+       source.buffer = audioBufferRef.current;
+       source.connect(audioContextRef.current.destination);
+       source.onended = () => {
+          // Only reset if we naturally finished, not just paused
+          if (audioContextRef.current?.state === 'running') {
+             setAudioState('idle');
+          }
+       };
+       source.start(0);
+       sourceRef.current = source;
+       setAudioState('playing');
+       
+       // Ensure context is running (sometimes needed after stop/close)
+       if (audioContextRef.current.state === 'suspended') {
+         await audioContextRef.current.resume();
+       }
+    }
+  };
 
   const urgencyConfig = {
     'Low': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-500', label: 'Safe Timeline' },
@@ -59,15 +105,17 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
   
   const urgency = urgencyConfig[result.urgency] || urgencyConfig['Medium'];
 
-  const handleInteraction = (box?: number[]) => {
+  const handleInteraction = (box?: number[], page?: number) => {
     if (box && box.length === 4) {
       setHighlightedBox(box);
+      setHighlightedPage(page);
       // On mobile, if they click a box item, switch to doc view to show it
       if (window.innerWidth < 1024) {
         setMobileTab('doc');
       }
     } else {
       setHighlightedBox(null);
+      setHighlightedPage(undefined);
     }
   };
 
@@ -104,29 +152,30 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
 
          <div className="flex items-center gap-2 md:gap-3">
              <button 
-                onClick={handlePlay}
-                disabled={!audioBuffer || isPlaying}
+                onClick={handleTogglePlay}
+                disabled={audioState === 'loading' || !audioBufferRef.current}
                 className={`
                   flex items-center gap-2 py-2 px-3 md:px-4 rounded-full transition-all duration-200 font-semibold text-xs md:text-sm
-                  ${!audioBuffer ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : isPlaying ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-900 text-white shadow hover:bg-slate-800'}
+                  ${audioState === 'loading' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 
+                    audioState === 'playing' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 
+                    'bg-slate-900 text-white shadow hover:bg-slate-800'}
                 `}
               >
-                  {isLoadingAudio ? (
+                  {audioState === 'loading' ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : isPlaying ? (
-                    <span className="flex items-center gap-2">
-                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                         </span>
-                         Playing...
-                    </span>
+                  ) : audioState === 'playing' ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0A.75.75 0 0115 4.5h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H15a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
+                      </svg>
+                      <span className="hidden md:inline">Pause</span>
+                    </>
                   ) : (
                     <>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                       <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
                     </svg>
-                    <span className="hidden md:inline">Listen</span>
+                    <span className="hidden md:inline">{audioState === 'paused' ? 'Resume' : 'Listen'}</span>
                     </>
                   )}
             </button>
@@ -176,6 +225,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
                         imageSrc={imageSrc} 
                         annotations={result.annotations} 
                         focusedBox={highlightedBox}
+                        focusedPage={highlightedPage}
                         zoom={zoom}
                       />
                     ) : (
@@ -206,9 +256,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
                             bg-white p-5 rounded-2xl border transition-all cursor-pointer group
                             ${item.box_2d ? 'border-indigo-100 hover:border-indigo-400 hover:ring-1 hover:ring-indigo-400 shadow-sm' : 'border-slate-200 hover:border-slate-300'}
                           `}
-                          onMouseEnter={() => handleInteraction(item.box_2d)}
-                          onMouseLeave={() => handleInteraction(undefined)}
-                          onClick={() => { handleInteraction(item.box_2d); }}
+                          onClick={() => { handleInteraction(item.box_2d, item.page); }}
                         >
                           <div className="flex gap-4">
                              <div className="flex-1">
@@ -229,7 +277,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
                              {/* Locator Icon if Box Exists */}
                              {item.box_2d && (
                                <div className="flex-shrink-0 self-center">
-                                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-full opacity-60 group-hover:opacity-100 transition-opacity" title="Show on document">
+                                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-full opacity-60 group-hover:opacity-100 transition-opacity" title={`Show on page ${item.page || 1}`}>
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                                       <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.62.829.799 1.654 1.38 2.274 1.766a11.267 11.267 0 00.758.434l.017.007.006.003h.002zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                                     </svg>
@@ -259,9 +307,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
                                 p-4 border-b border-orange-100 last:border-0 hover:bg-orange-50 cursor-pointer transition-colors group flex gap-3
                                 ${risk.box_2d ? 'hover:bg-orange-100/50' : ''}
                               `}
-                              onMouseEnter={() => handleInteraction(risk.box_2d)}
-                              onMouseLeave={() => handleInteraction(undefined)}
-                              onClick={() => { handleInteraction(risk.box_2d); }}
+                              onClick={() => { handleInteraction(risk.box_2d, risk.page); }}
                              >
                                <span className="text-orange-400 mt-0.5">•</span>
                                <div className="flex-1">
@@ -299,9 +345,7 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
                                 p-4 border-b border-blue-100 last:border-0 hover:bg-blue-50 cursor-pointer transition-colors group flex gap-3
                                 ${right.box_2d ? 'hover:bg-blue-100/50' : ''}
                               `}
-                              onMouseEnter={() => handleInteraction(right.box_2d)}
-                              onMouseLeave={() => handleInteraction(undefined)}
-                              onClick={() => { handleInteraction(right.box_2d); }}
+                              onClick={() => { handleInteraction(right.box_2d, right.page); }}
                              >
                                <span className="text-blue-400 mt-0.5">•</span>
                                <div className="flex-1">
