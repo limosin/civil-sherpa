@@ -59,11 +59,12 @@ export const analyzeDocument = async (
     1. Identify the Sender.
     2. Determine Urgency.
     3. **TRAP DETECTION (Risks)**: Look for "fine print," aggressive deadlines, threats of termination, or complex legal language. 
-       - PROVIDE COORDINATES (box_2d) for where this text appears on the page so we can highlight it.
+       - CRITICAL: If this risk comes from specific text visible on the page, YOU MUST PROVIDE COORDINATES (box_2d).
+       - If it is general advice, omit coordinates.
     4. **RIGHTS DETECTION**: What rights do they have? (e.g., "Right to appeal," "Grace period").
-       - PROVIDE COORDINATES (box_2d) for where this is mentioned.
+       - CRITICAL: If the right is stated in the text, YOU MUST PROVIDE COORDINATES (box_2d).
     5. **ACTION PLAN**: Specific, simple steps.
-       - If an action corresponds to a specific part of the form (e.g., "Check this box"), provide coordinates.
+       - CRITICAL: If an action corresponds to a specific part of the form (e.g., "Check this box", "Sign here", "Mail to this address"), YOU MUST PROVIDE COORDINATES (box_2d).
     6. **VISUAL GUIDANCE (Annotations)**: Identify specific locations on the page where the user must take action. Return bounding boxes [ymin, xmin, ymax, xmax] in 0-1000 scale.
        - Look for Signature lines (label: "Sign Here")
        - Look for Date fields (label: "Date Here")
@@ -102,7 +103,7 @@ export const analyzeDocument = async (
               type: Type.OBJECT,
               properties: {
                 description: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
               }
             },
             description: "Hidden traps, aggressive clauses, or strict deadlines." 
@@ -113,7 +114,7 @@ export const analyzeDocument = async (
               type: Type.OBJECT,
               properties: {
                 description: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
               }
             },
             description: "Rights the user has (appeal, support, etc)." 
@@ -126,7 +127,7 @@ export const analyzeDocument = async (
                 what: { type: Type.STRING },
                 when: { type: Type.STRING, nullable: true },
                 how: { type: Type.STRING },
-                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } }
+                box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER }, nullable: true }
               }
             }
           },

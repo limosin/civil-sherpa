@@ -14,6 +14,8 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [mobileTab, setMobileTab] = useState<'plan' | 'doc'>('plan');
   
   // Interactive State
   const [highlightedBox, setHighlightedBox] = useState<number[] | null>(null);
@@ -48,244 +50,279 @@ export const AnalysisResultView: React.FC<AnalysisResultViewProps> = ({ result, 
     }
   }, [audioBuffer]);
 
-  // Urgency Color Mapping
   const urgencyConfig = {
-    'Low': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '🟢', label: 'Safe Timeline' },
-    'Medium': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '🟡', label: 'Action Needed' },
-    'High': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: '🟠', label: 'Important' },
-    'Critical': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: '🔴', label: 'Urgent Action' }
+    'Low': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-500', label: 'Safe Timeline' },
+    'Medium': { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200', dot: 'bg-amber-500', label: 'Action Needed' },
+    'High': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', dot: 'bg-orange-500', label: 'Important' },
+    'Critical': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', dot: 'bg-red-500', label: 'Urgent Action' }
   };
   
   const urgency = urgencyConfig[result.urgency] || urgencyConfig['Medium'];
 
-  const scrollToDoc = () => {
-    const docEl = document.getElementById('doc-view');
-    if (docEl) docEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
   const handleInteraction = (box?: number[]) => {
     if (box && box.length === 4) {
       setHighlightedBox(box);
+      // On mobile, if they click a box item, switch to doc view to show it
+      if (window.innerWidth < 1024) {
+        setMobileTab('doc');
+      }
     } else {
       setHighlightedBox(null);
     }
   };
 
   return (
-    <div className="w-full px-4 md:px-8 pb-32">
+    // Workspace Container: Fixed height to window minus header (approx 5rem)
+    <div className="flex flex-col h-[calc(100vh-5rem)] bg-white overflow-hidden">
       
-      {/* 1. Header Section: Summary, Sender & Audio (Full Width) */}
-      <div className="max-w-5xl mx-auto mb-12 text-center pt-4">
-         <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
-             <span className="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-white border border-slate-200 text-slate-600 text-sm font-bold uppercase tracking-wider shadow-sm">
-               {result.sender}
-             </span>
-             <div className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border shadow-sm ${urgency.bg} ${urgency.border} ${urgency.text}`}>
-               <span className="text-sm font-bold uppercase">{urgency.label}</span>
+      {/* 1. Toolbar / Header Row */}
+      <div className="h-16 shrink-0 border-b border-slate-200 bg-white px-4 md:px-6 flex items-center justify-between shadow-sm z-20 relative">
+         <div className="flex items-center gap-3 md:gap-4 min-w-0">
+             <button 
+                onClick={onReset}
+                className="p-2 -ml-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                title="Back to Scan"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+             </button>
+             
+             <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{result.sender}</span>
+                   <div className={`flex items-center gap-1 px-1.5 rounded border ${urgency.bg} ${urgency.border} ${urgency.text} scale-90 origin-left`}>
+                       <span className={`w-1.5 h-1.5 rounded-full ${urgency.dot}`}></span>
+                       <span className="text-[10px] font-bold uppercase">{urgency.label}</span>
+                   </div>
+                </div>
+                <h1 className="text-sm md:text-base font-bold text-slate-900 truncate max-w-[200px] md:max-w-md leading-tight">
+                    {result.summary}
+                </h1>
              </div>
          </div>
 
-         <h1 className="text-3xl md:text-5xl font-black text-slate-900 mb-8 leading-tight">
-            {result.summary}
-         </h1>
-
-          <div className="flex justify-center">
-            <button 
+         <div className="flex items-center gap-2 md:gap-3">
+             <button 
                 onClick={handlePlay}
                 disabled={!audioBuffer || isPlaying}
                 className={`
-                  group relative flex items-center justify-center gap-3 py-3 px-8 rounded-full transition-all duration-300
-                  ${!audioBuffer ? 'bg-slate-100 cursor-not-allowed' : isPlaying ? 'bg-indigo-600 ring-4 ring-indigo-100' : 'bg-slate-900 hover:bg-slate-800 shadow-xl shadow-indigo-200/50 hover:-translate-y-1'}
+                  flex items-center gap-2 py-2 px-3 md:px-4 rounded-full transition-all duration-200 font-semibold text-xs md:text-sm
+                  ${!audioBuffer ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : isPlaying ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-900 text-white shadow hover:bg-slate-800'}
                 `}
               >
-                <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center
-                  ${!audioBuffer ? 'bg-slate-300 text-slate-500' : 'bg-white/20 text-white'}
-                `}>
                   {isLoadingAudio ? (
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : isPlaying ? (
-                     <div className="flex gap-0.5 h-3 items-end">
-                       <div className="w-0.5 bg-white animate-[pulse_1s_ease-in-out_infinite] h-full"></div>
-                       <div className="w-0.5 bg-white animate-[pulse_1.2s_ease-in-out_infinite] h-3/4"></div>
-                       <div className="w-0.5 bg-white animate-[pulse_0.8s_ease-in-out_infinite] h-full"></div>
-                    </div>
+                    <span className="flex items-center gap-2">
+                         <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                         </span>
+                         Playing...
+                    </span>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
+                    <>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                       <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
                     </svg>
+                    <span className="hidden md:inline">Listen</span>
+                    </>
                   )}
-                </div>
-                 <span className={`font-bold text-lg ${!audioBuffer ? 'text-slate-400' : 'text-white'}`}>
-                  {isPlaying ? 'Listening...' : 'Listen to Explanation'}
-                </span>
             </button>
-          </div>
+         </div>
       </div>
 
-      {/* 2. Main Grid: Document vs Details */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start max-w-[1800px] mx-auto">
-        
-        {/* Left Column: Interactive Document (Dominant) */}
-        <div className="order-2 xl:order-1 xl:col-span-7 xl:sticky xl:top-24" id="doc-view">
-           <div className="bg-slate-50 rounded-[2rem] p-2 md:p-6 shadow-inner border border-slate-200 overflow-hidden relative">
-            <div className="absolute top-6 right-6 z-10 bg-white/90 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-md shadow-sm pointer-events-none border border-slate-200">
-              Interactive Document View
-            </div>
-            {imageSrc ? (
-              <DocCanvas 
-                imageSrc={imageSrc} 
-                annotations={result.annotations} 
-                focusedBox={highlightedBox}
-              />
-            ) : (
-              <div className="aspect-[3/4] flex items-center justify-center bg-slate-100 text-slate-400 rounded-xl border border-dashed border-slate-300">
-                No Preview Available
-              </div>
-            )}
-             <p className="mt-4 text-sm text-slate-400 text-center font-medium">
-              Hover or tap items on the right to locate them in the document.
-            </p>
-          </div>
-        </div>
-
-        {/* Right Column: Analysis Details */}
-        <div className="order-1 xl:order-2 xl:col-span-5 space-y-6">
-          
-          {/* RISKS & RIGHTS Section */}
-          <div className="grid grid-cols-1 gap-4">
-            {/* Risks */}
-            {result.risks && result.risks.length > 0 && (
-              <div className="bg-orange-50 rounded-2xl p-6 border border-orange-100">
-                <div className="flex items-center gap-2 mb-4 text-orange-800">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                  </svg>
-                  <h3 className="font-bold uppercase tracking-wide text-sm">Traps & Fine Print</h3>
-                </div>
-                <ul className="space-y-3">
-                  {result.risks.map((risk, i) => (
-                    <li 
-                      key={i} 
-                      className="group cursor-pointer p-3 -mx-2 rounded-xl bg-white/50 hover:bg-white border border-transparent hover:border-orange-200 transition-all shadow-sm hover:shadow-md"
-                      onMouseEnter={() => handleInteraction(risk.box_2d)}
-                      onMouseLeave={() => handleInteraction(undefined)}
-                      onClick={() => { handleInteraction(risk.box_2d); scrollToDoc(); }}
-                    >
-                      <div className="text-orange-900 text-sm font-bold leading-snug flex items-start gap-3">
-                        <span className="mt-1.5 w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0 group-hover:scale-150 transition-transform"></span>
-                        <div className="flex-1">
-                          {risk.description}
-                        </div>
-                         {risk.box_2d && (
-                            <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              Show ↗
-                            </span>
-                          )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Rights */}
-            {result.rights && result.rights.length > 0 && (
-              <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
-                 <div className="flex items-center gap-2 mb-4 text-blue-800">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 00.374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.352-.272-2.636-.759-3.808a.75.75 0 00-.772-.516 11.209 11.209 0 01-7.703-3.257z" clipRule="evenodd" />
-                  </svg>
-                  <h3 className="font-bold uppercase tracking-wide text-sm">Your Rights</h3>
-                </div>
-                <ul className="space-y-3">
-                  {result.rights.map((right, i) => (
-                    <li 
-                      key={i} 
-                      className="group cursor-pointer p-3 -mx-2 rounded-xl bg-white/50 hover:bg-white border border-transparent hover:border-blue-200 transition-all shadow-sm hover:shadow-md"
-                      onMouseEnter={() => handleInteraction(right.box_2d)}
-                      onMouseLeave={() => handleInteraction(undefined)}
-                      onClick={() => { handleInteraction(right.box_2d); scrollToDoc(); }}
-                    >
-                      <div className="text-blue-900 text-sm font-bold leading-snug flex items-start gap-3">
-                        <span className="mt-1.5 w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0 group-hover:scale-150 transition-transform"></span>
-                        <div className="flex-1">
-                           {right.description}
-                        </div>
-                           {right.box_2d && (
-                            <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              Show ↗
-                            </span>
-                          )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Action Items List */}
-          <div className="space-y-4 pt-4">
-            <div className="flex items-center gap-2 mb-2 ml-1">
-              <h3 className="text-2xl font-extrabold text-slate-900">Your Action Plan</h3>
-            </div>
-            
-            {result.actionItems.map((item, idx) => (
-              <div 
-                key={idx} 
-                className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100 flex gap-4 transition-all hover:scale-[1.01] hover:shadow-lg cursor-pointer hover:border-indigo-200 group"
-                onMouseEnter={() => handleInteraction(item.box_2d)}
-                onMouseLeave={() => handleInteraction(undefined)}
-                onClick={() => { handleInteraction(item.box_2d); scrollToDoc(); }}
-              >
-                <div className="mt-1">
-                   <div className="w-8 h-8 rounded-full bg-indigo-50 border-2 border-indigo-200 text-indigo-600 flex items-center justify-center font-bold text-sm group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-colors shadow-sm">
-                     {idx + 1}
-                   </div>
-                </div>
-                <div className="flex-1">
-                  <p className="text-lg font-bold text-slate-900 leading-tight mb-3 group-hover:text-indigo-700 transition-colors">
-                    {item.what}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    {item.when && (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-red-50 text-red-700 text-sm font-bold border border-red-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
-                        </svg>
-                        Due {item.when}
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-slate-100 text-slate-600 text-sm font-semibold border border-slate-200">
-                      {item.how}
-                    </span>
-                    {item.box_2d && (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-50 text-indigo-600 text-xs font-bold border border-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
-                         🔍 Locate on Doc
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      </div>
-
-      {/* Floating Action Button for New Scan */}
-      <div className="fixed bottom-8 left-0 right-0 px-6 flex justify-center z-20 pointer-events-none">
+      {/* Mobile Tabs */}
+      <div className="lg:hidden flex border-b border-slate-200 bg-white">
         <button 
-          onClick={onReset}
-          className="pointer-events-auto bg-slate-900 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-3 hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 border-4 border-white/20 backdrop-blur-sm"
+          onClick={() => setMobileTab('plan')}
+          className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${mobileTab === 'plan' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-          </svg>
-          Scan Another
+          Action Plan
         </button>
+        <button 
+          onClick={() => setMobileTab('doc')}
+          className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${mobileTab === 'doc' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+        >
+          Document
+        </button>
+      </div>
+
+      {/* 2. Split Workspace */}
+      <div className="flex-1 flex overflow-hidden relative">
+         
+         {/* Left Panel: Document Viewer */}
+         <div className={`
+            flex-1 bg-slate-100 relative flex flex-col min-w-0 transition-transform duration-300 absolute inset-0 lg:static z-10 lg:z-auto
+            ${mobileTab === 'doc' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+         `}>
+             {/* Zoom Controls Overlay */}
+             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/90 backdrop-blur border border-slate-200 shadow-lg rounded-full px-4 py-2 flex items-center gap-4">
+                <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="text-slate-500 hover:text-indigo-600 p-1">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clipRule="evenodd" /></svg>
+                </button>
+                <span className="text-xs font-bold text-slate-700 min-w-[3rem] text-center">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="text-slate-500 hover:text-indigo-600 p-1">
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></svg>
+                </button>
+             </div>
+
+             {/* Scrollable Canvas Area */}
+             <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar flex items-start justify-center bg-slate-100/50">
+                 <div className="bg-white shadow-2xl rounded-sm transition-transform duration-200 origin-top" style={{ minWidth: 'fit-content' }}>
+                   {imageSrc ? (
+                      <DocCanvas 
+                        imageSrc={imageSrc} 
+                        annotations={result.annotations} 
+                        focusedBox={highlightedBox}
+                        zoom={zoom}
+                      />
+                    ) : (
+                      <div className="w-[300px] h-[400px] flex items-center justify-center text-slate-300">No Document</div>
+                    )}
+                 </div>
+             </div>
+         </div>
+
+         {/* Right Panel: Analysis Sidebar */}
+         <div className={`
+            w-full lg:w-[480px] xl:w-[550px] bg-white lg:border-l border-slate-200 overflow-y-auto flex-shrink-0 z-10 shadow-xl lg:shadow-none absolute inset-0 lg:static bg-white transition-transform duration-300
+            ${mobileTab === 'plan' ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
+         `}>
+            <div className="p-4 md:p-6 space-y-8 pb-32">
+                
+                {/* Action Plan */}
+                <section>
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-indigo-200">1</div>
+                        <h3 className="text-xl font-bold text-slate-900">Action Plan</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {result.actionItems.map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          className={`
+                            bg-white p-5 rounded-2xl border transition-all cursor-pointer group
+                            ${item.box_2d ? 'border-indigo-100 hover:border-indigo-400 hover:ring-1 hover:ring-indigo-400 shadow-sm' : 'border-slate-200 hover:border-slate-300'}
+                          `}
+                          onMouseEnter={() => handleInteraction(item.box_2d)}
+                          onMouseLeave={() => handleInteraction(undefined)}
+                          onClick={() => { handleInteraction(item.box_2d); }}
+                        >
+                          <div className="flex gap-4">
+                             <div className="flex-1">
+                                <p className="text-lg font-semibold text-slate-800 leading-snug mb-3 group-hover:text-indigo-700">
+                                  {item.what}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {item.when && (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-50 text-red-700 border border-red-100 uppercase tracking-wide">
+                                      Due {item.when}
+                                    </span>
+                                  )}
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                    {item.how}
+                                  </span>
+                                </div>
+                             </div>
+                             {/* Locator Icon if Box Exists */}
+                             {item.box_2d && (
+                               <div className="flex-shrink-0 self-center">
+                                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-full opacity-60 group-hover:opacity-100 transition-opacity" title="Show on document">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                      <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.62.829.799 1.654 1.38 2.274 1.766a11.267 11.267 0 00.758.434l.017.007.006.003h.002zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                               </div>
+                             )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                 </section>
+
+                 {/* Risks */}
+                 {result.risks && result.risks.length > 0 && (
+                    <section>
+                       <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-orange-500">
+                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                          </svg>
+                          Traps & Fine Print
+                       </h3>
+                       <div className="bg-orange-50/30 rounded-2xl border border-orange-100 overflow-hidden">
+                          {result.risks.map((risk, i) => (
+                             <div 
+                              key={i}
+                              className={`
+                                p-4 border-b border-orange-100 last:border-0 hover:bg-orange-50 cursor-pointer transition-colors group flex gap-3
+                                ${risk.box_2d ? 'hover:bg-orange-100/50' : ''}
+                              `}
+                              onMouseEnter={() => handleInteraction(risk.box_2d)}
+                              onMouseLeave={() => handleInteraction(undefined)}
+                              onClick={() => { handleInteraction(risk.box_2d); }}
+                             >
+                               <span className="text-orange-400 mt-0.5">•</span>
+                               <div className="flex-1">
+                                 <p className="text-sm font-medium text-slate-700 group-hover:text-orange-900 transition-colors leading-relaxed">
+                                    {risk.description}
+                                 </p>
+                               </div>
+                               {risk.box_2d && (
+                                 <div className="text-orange-300 group-hover:text-orange-500">
+                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                      <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.62.829.799 1.654 1.38 2.274 1.766a11.267 11.267 0 00.758.434l.017.007.006.003h.002zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                   </svg>
+                                 </div>
+                               )}
+                             </div>
+                          ))}
+                       </div>
+                    </section>
+                 )}
+
+                 {/* Rights */}
+                 {result.rights && result.rights.length > 0 && (
+                    <section>
+                       <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-blue-500">
+                            <path fillRule="evenodd" d="M16.403 12.652a3 3 0 000-5.304 3 3 0 00-3.75-3.651 3 3 0 00-4.982 0 3 3 0 00-3.75 3.651 3 3 0 000 5.304 3 3 0 003.75 3.651 3 3 0 004.982 0 3 3 0 003.75-3.651zM10 8a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                          </svg>
+                          Your Rights
+                       </h3>
+                       <div className="bg-blue-50/30 rounded-2xl border border-blue-100 overflow-hidden">
+                          {result.rights.map((right, i) => (
+                             <div 
+                              key={i}
+                              className={`
+                                p-4 border-b border-blue-100 last:border-0 hover:bg-blue-50 cursor-pointer transition-colors group flex gap-3
+                                ${right.box_2d ? 'hover:bg-blue-100/50' : ''}
+                              `}
+                              onMouseEnter={() => handleInteraction(right.box_2d)}
+                              onMouseLeave={() => handleInteraction(undefined)}
+                              onClick={() => { handleInteraction(right.box_2d); }}
+                             >
+                               <span className="text-blue-400 mt-0.5">•</span>
+                               <div className="flex-1">
+                                 <p className="text-sm font-medium text-slate-700 group-hover:text-blue-900 transition-colors leading-relaxed">
+                                    {right.description}
+                                 </p>
+                               </div>
+                               {right.box_2d && (
+                                 <div className="text-blue-300 group-hover:text-blue-500">
+                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                      <path fillRule="evenodd" d="M9.69 18.933l.003.001C9.89 19.02 10 19 10 19s.11.02.308-.066l.002-.001.006-.003.018-.008a5.741 5.741 0 00.281-.14c.186-.096.446-.24.757-.433.62-.384 1.445-.966 2.274-1.765C15.302 14.988 17 12.493 17 9A7 7 0 103 9c0 3.492 1.698 5.988 3.355 7.62.829.799 1.654 1.38 2.274 1.766a11.267 11.267 0 00.758.434l.017.007.006.003h.002zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                   </svg>
+                                 </div>
+                               )}
+                             </div>
+                          ))}
+                       </div>
+                    </section>
+                 )}
+            </div>
+         </div>
       </div>
     </div>
   );

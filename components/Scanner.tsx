@@ -96,6 +96,21 @@ export const Scanner: React.FC = () => {
   };
 
   const currentLangConfig = LANGUAGE_CONFIGS[selectedLanguage];
+  const isResultView = step === Step.RESULT && analysisResult;
+
+  // Render centered layout for setup steps, full width for result
+  if (isResultView) {
+    return (
+      <div className="w-full h-full animate-in fade-in duration-500">
+        <AnalysisResultView 
+          result={analysisResult!} 
+          language={selectedLanguage}
+          imageSrc={filePreview}
+          onReset={handleReset}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-3xl mx-auto py-8">
@@ -152,17 +167,6 @@ export const Scanner: React.FC = () => {
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2 transition-all duration-300">{analyzingText}</h2>
           <p className="text-slate-500 text-lg">I am reading every word for you.</p>
-        </div>
-      )}
-
-      {step === Step.RESULT && analysisResult && (
-        <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500 px-4">
-          <AnalysisResultView 
-            result={analysisResult} 
-            language={selectedLanguage}
-            imageSrc={filePreview}
-            onReset={handleReset}
-          />
         </div>
       )}
 
